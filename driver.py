@@ -20,10 +20,10 @@ class Driver:
 
     def write(self, address: Address, data: bytes) -> None:
         with open(self._path, "r+") as storage:
-            storage.seek(address)
+            storage.seek(8*address)
             storage.write(bytes_to_bits(data))
 
     def read(self, address: Address, n_bytes: int) -> bytes:
         with open(self._path, "r") as storage:
-            storage.seek(address)
+            storage.seek(8*address)
             return bytes_from_bits(storage.read(8*n_bytes))
