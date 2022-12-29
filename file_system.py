@@ -10,104 +10,122 @@ Byte = int
 Address = int
 
 
+class OutOfInodes(Exception):
+    pass
+
+
 class FileSystem:
     inode_size: Byte = 256
 
     def __init__(self, driver: Driver, block_size: Byte, inodes_number: int):
 
-        data_blocks_number = (driver.device_size - (inodes_number * self.inode_size)) // block_size
+        data_blocks_number = (
+                                     driver.device_size - (inodes_number * self.inode_size)
+                             ) // block_size
         bitmap_blocks_number = 0
 
         # 15 bytes - dumped empty string size
-        while bitmap_blocks_number * block_size - len(dumps('')) < data_blocks_number:
+        while bitmap_blocks_number * block_size - len(dumps("")) < data_blocks_number:
             bitmap_blocks_number += 1
         data_blocks_number -= bitmap_blocks_number
 
-        self.bitmap = Bitmap('0' * data_blocks_number, offset=0)
+        self.bitmap = Bitmap("0" * data_blocks_number, offset=0)
         driver.write(self.bitmap.offset, self.bitmap.dumped)
 
         self._driver = driver
         self._block_size = block_size
-        self._inode_sector_offset = self.bitmap.offset+self.bitmap.size+1
-        self._data_sector_offset = self._inode_sector_offset + 1 + self.inode_size*inodes_number
+        self._inode_sector_offset = self.bitmap.offset + self.bitmap.size + 1
+        self._inodes_number = inodes_number
+        self._data_sector_offset = (
+                self._inode_sector_offset + 1 + self.inode_size * inodes_number
+        )
 
-        self._root_directory = self.create_directory('/')
+        self._root_directory = self.create_file("/", [".", ".."], Directory)
 
-    def create_directory(self, name):
-        # d = Directory(name, data=['.', '..'])
-        data = Data(['.', '..'])
+    def create_file(self, name, data, file_cls):
+        data = Data(data)
         data_size = len(data.dumped)
+
         required_blocks_number = 0
         while required_blocks_number * self._block_size < data_size:
             required_blocks_number += 1
 
         addresses = self.get_free_blocks(required_blocks_number)
 
-        # chunks = [data.dumped[i:i+required_blocks_number] for i in range(0, data_size, required_blocks_number)]
-        chunks = list(split(data.dumped, self._block_size))
+        chunks = data.split(self._block_size)
         assert len(addresses) == len(chunks)
         for data_chunk, addr in zip(chunks, addresses):
-            self._driver.write(self._data_sector_offset+addr, data_chunk)
+            self._driver.write(
+                self._data_sector_offset + addr * self._block_size, data_chunk
+            )
 
-        self.bitmap = self.bitmap.update('1', addresses)
+        self.bitmap = self.bitmap.update("1", addresses)
         self._driver.write(self.bitmap.offset, self.bitmap.dumped)
 
+        inode_id = self.get_free_inode()
+        inode = Inode(
+            name, file_cls.ftype, file_cls.default_links_cnt, data_size, addresses
+        )
 
-        # print(loads(self._driver.read(self.bitmap.offset, self.bitmap.size)))
-        #
-        # print(loads(self._driver.read(self._data_sector_offset, self._block_size)))
+        self._driver.write(
+            self._inode_sector_offset + inode_id * self.inode_size, inode.dumped
+        )
 
+        print(
+            f"bitmap: {loads(self._driver.read(self.bitmap.offset, self.bitmap.size))}"
+        )
+        if file_cls.ftype == 'd':
+            print(
+                f"rootdir inode: {loads(self._driver.read(self._inode_sector_offset, self.inode_size))}"
+            )
+            print(
+                f"rootdir: {loads(self._driver.read(self._data_sector_offset, self._block_size))}"
+            )
 
-        inode = Inode(name, 'd', 2, data_size, addresses)
-        self._driver.write(self._inode_sector_offset, inode.dumped)
+        if file_cls.ftype == "f":
+            print(
+                f"file inode: {loads(self._driver.read(self._inode_sector_offset + 1 * self.inode_size, self.inode_size))}"
+            )
+            addr = self._data_sector_offset + 1 * self._block_size
+            n_bytes = self._block_size
+            print(f"file: {loads(self._driver.read(addr, n_bytes))}")
 
-        return Directory(inode)
-
-        # blocks_addr = loads(self._driver.read(self._inode_sector_offset, self.inode_size))['data_blocks_map']
-        # res = []
-        # for addr in blocks_addr:
-        #     res.append(self._driver.read(self._data_sector_offset+addr, self._block_size))
-        # print(loads(b''.join(res)))
-
-
-        # print(len(inode.dumped))
-        # print(loads(self._driver.read(self._inode_sector_offset, self.inode_size)))
-
-
-
-
-
-
-
-        # required_blocks_number = data.size//self.block_size
-        # addresses = get_free_blocks(required_blocks_number)
-        # self._driver.write(address=address, data=data)
-        # self._driver.write(bitmap)
-
-        # inode = Inode(name=name, file_type='d', links_cnt=2, file_size=data.size, data_blocks=addresses)
-
-        # self._driver.write(address=0, data=inode)
-        #
-
-        # return Directory(inode)
+        return file_cls(inode)
 
     def get_free_blocks(self, n: int) -> list[Address]:
         bitmap = loads(self._driver.read(self.bitmap.offset, self.bitmap.size))
-        free_blocks = [m.start() for m in re.finditer('0', bitmap)]
+        free_blocks = [m.start() for m in re.finditer("0", bitmap)]
         return free_blocks[:n]
 
-
+    def get_free_inode(self):
+        for i in range(self._inodes_number):
+            if (
+                    self._driver.read(
+                        self._inode_sector_offset + i * self.inode_size, self.inode_size
+                    )
+                    == b"\x00"
+            ):
+                return i
+        raise OutOfInodes
 
 
 class Inode:
-    def __init__(self, file_name: str, file_type: str, links_cnt: int, file_size: Byte, data_blocks: list[Address]):
+    def __init__(
+            self,
+            file_name: str,
+            file_type: str,
+            links_cnt: int,
+            file_size: Byte,
+            data_blocks: list[Address],
+    ):
         self._attrs = {
-            'file_name': file_name,
-            'file_type': file_type,
-            'links_count': links_cnt,
-            'file_size': file_size,
-            'data_blocks_map': data_blocks
+            "file_name": file_name,
+            "file_type": file_type,
+            "links_count": links_cnt,
+            "file_size": file_size,
+            "data_blocks_map": data_blocks,
         }
+
     @property
     def dumped(self):
         return dumps(self._attrs)
@@ -125,6 +143,13 @@ class Data:
     @property
     def dumped(self):
         return self._dumped
+
+    def split(self, chunk_size):
+        arr = self.dumped
+        chunks = []
+        for i in range(0, len(arr), chunk_size):
+            chunks.append(arr[i: i + chunk_size])
+        return chunks
 
 
 class Bitmap(Data):
@@ -145,20 +170,24 @@ class Bitmap(Data):
         bitmap_array = list(self.data)
         for p in pos:
             bitmap_array[p] = value
-        return Bitmap(''.join(bitmap_array))
+        return Bitmap("".join(bitmap_array))
 
 
 class File:
-    pass
-
-class Directory(File):
     def __init__(self, inode: Inode):
         self._inode = inode
 
 
-def split(arr, chunk_size):
-    chunks = []
-    for i in range(0, len(arr), chunk_size):
-        chunks.append(arr[i:i+chunk_size])
+class Directory(File):
+    ftype = "d"
+    default_links_cnt = 2
 
-    return chunks
+
+class RegularFile(File):
+    ftype = "f"
+    default_links_cnt = 1
+
+
+class Symlink(File):
+    ftype = "l"
+    default_links_cnt = 1
