@@ -14,13 +14,13 @@ class File:
     def inode(self):
         return self._inode
 
-    def __str__(self):
-        return str(self.data.content)
-
 
 class Directory(File):
     ftype = "d"
     default_links_cnt = 2
+
+    def __repr__(self):
+        return "\n".join([d for d in self.data.content])
 
 
 class RegularFile(File):

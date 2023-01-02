@@ -242,3 +242,9 @@ class FileSystem:
         self._driver.clear(
             self._inode_sector_offset + inode_id * self.__inode_size, self.__inode_size
         )
+
+    def ls(self) -> str:
+        return str(self.read_directory(self._cwd))
+
+    def stat(self, path) -> str:
+        return str(self.read_directory(path).inode)
