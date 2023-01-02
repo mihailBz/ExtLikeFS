@@ -27,3 +27,8 @@ class Driver:
         with open(self._path, "r") as storage:
             storage.seek(8 * address)
             return bytes_from_bits(storage.read(8 * n_bytes))
+
+    def clear(self, address: Address, n_bytes: int):
+        with open(self._path, "r+") as storage:
+            storage.seek(8 * address)
+            storage.write("0" * 8 * n_bytes)
