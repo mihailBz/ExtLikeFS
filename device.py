@@ -1,10 +1,8 @@
 from os.path import exists
 
+from exceptions import *
+
 Byte = int
-
-
-class InvalidSize(Exception):
-    pass
 
 
 class StorageDevice:
@@ -12,12 +10,12 @@ class StorageDevice:
         self._size = size
         self._path = path
         if exists(path) and not clear:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 if len(f.read()) / 8 != size:
                     raise InvalidSize
         else:
-            with open(path, 'w') as f:
-                f.write('0' * size * 8)
+            with open(path, "w") as f:
+                f.write("0" * size * 8)
 
     @property
     def size(self):

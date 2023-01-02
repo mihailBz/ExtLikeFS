@@ -1,5 +1,6 @@
 from pickle import dumps
 
+
 class Writable:
     def __init__(self, content):
         self._content = content
@@ -43,5 +44,5 @@ class Data(Writable):
         arr = self.dumped
         chunks = []
         for i in range(0, len(arr), chunk_size):
-            chunks.append(arr[i: i + chunk_size])
+            chunks.append(arr[i : i + chunk_size])
         return chunks

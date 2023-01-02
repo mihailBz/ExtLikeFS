@@ -16,3 +16,7 @@ class FileAlreadyExists(Exception):
 
 class OutOfBlocks(Exception):
     pass
+
+
+class InvalidSize(Exception):
+    pass

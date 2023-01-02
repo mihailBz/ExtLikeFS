@@ -1,5 +1,6 @@
 from writable import Inode, Data
 
+
 class File:
     def __init__(self, inode: Inode, data: Data):
         self._inode = inode
