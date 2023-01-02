@@ -46,13 +46,14 @@ class FileSystem:
         data_blocks_number -= bitmap_blocks_number
         return data_blocks_number
 
-    def mkdir(self, path: PurePosixPath) -> None:
-        if str(path) == "/":
+    def mkdir(self, path: str) -> None:
+        if path == "/":
             raise FileAlreadyExists
         else:
             self.__mkdir(path)
 
-    def __mkdir(self, path: PurePosixPath) -> None:
+    def __mkdir(self, path: str) -> None:
+        path: PurePosixPath = self.resolve_path(path)
         if str(path) == "/":
             name = "/"
             inode_id = 0
@@ -114,20 +115,19 @@ class FileSystem:
         return Directory(inode, entry)
 
     def get_file_inode_id(self, path: PurePosixPath) -> int:
-        if path.is_absolute():
-            inode_id = 0
-            if len(path.parents) != 0:
-                parents = list(path.parents[::-1])
-                parents.append(path)
-            else:
-                return inode_id
-            for parent, child in zip(parents[:-1], parents[1:]):
-                parent_entry = self.read_file(inode_id)
-                if parent_entry.content.get(child.name):
-                    inode_id = parent_entry.content.get(child.name)
-                else:
-                    raise FileDoesNotExist
+        inode_id = 0
+        if len(path.parents) != 0:
+            parents = list(path.parents[::-1])
+            parents.append(path)
+        else:
             return inode_id
+        for parent, child in zip(parents[:-1], parents[1:]):
+            parent_entry = self.read_file(inode_id)
+            if parent_entry.content.get(child.name) is not None:
+                inode_id = parent_entry.content.get(child.name)
+            else:
+                raise FileDoesNotExist
+        return inode_id
 
     def read_file(self, inode_id) -> Data:
         inode: Inode = self.read_inode(inode_id)
@@ -196,7 +196,8 @@ class FileSystem:
             inode.dumped,
         )
 
-    def rmdir(self, path: PurePosixPath):
+    def rmdir(self, path: str):
+        path: PurePosixPath = self.resolve_path(path)
         if str(path) == "/":
             raise CannotRemoveDirectory("root directory cannot be removed")
 
@@ -246,5 +247,12 @@ class FileSystem:
     def ls(self) -> str:
         return str(self.read_directory(self._cwd))
 
-    def stat(self, path) -> str:
-        return str(self.read_directory(path).inode)
+    def stat(self, path: str) -> str:
+        return str(self.read_directory(self.resolve_path(path)).inode)
+
+    def resolve_path(self, path: str) -> PurePosixPath:
+        path = PurePosixPath(path)
+        if path.is_absolute():
+            return path
+        else:
+            return self._cwd.joinpath(path)
