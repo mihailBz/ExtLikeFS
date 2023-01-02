@@ -20,3 +20,7 @@ class OutOfBlocks(Exception):
 
 class InvalidSize(Exception):
     pass
+
+
+class CannotRemoveDirectory(Exception):
+    pass

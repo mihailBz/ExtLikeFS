@@ -30,8 +30,9 @@ class FileSystem:
             self._inode_sector_offset + 1 + self.__inode_size * self._inodes_number
         )
 
-        self._root_directory = self.__mkdir(PurePosixPath("/"))
-        self._cwd = self._root_directory
+        self._root_directory_path = PurePosixPath("/")
+        self.__mkdir(self._root_directory_path)
+        self._cwd = self._root_directory_path
 
     @staticmethod
     def calculate_data_blocks_number(
@@ -193,4 +194,51 @@ class FileSystem:
         self._driver.write(
             self._inode_sector_offset + inode.content.get("id") * self.__inode_size,
             inode.dumped,
+        )
+
+    def rmdir(self, path: PurePosixPath):
+        if str(path) == "/":
+            raise CannotRemoveDirectory("root directory cannot be removed")
+
+        directory: Directory = self.read_directory(path)
+        parent: Directory = self.read_directory(path.parent)
+
+        if len(directory.data.content) > 2:
+            raise CannotRemoveDirectory("directory is not empty")
+
+        self.clear_data_block(directory.inode.content["data_blocks_map"])
+        self.clear_inode(directory.inode.content["id"])
+
+        parent_entry: dict = parent.data.content
+        parent_entry.pop(path.name)
+        parent_entry: Data = Data(parent_entry)
+
+        parent_inode_record = parent.inode.content
+        parent_inode_record["links_cnt"] -= 1
+        addresses = parent_inode_record["data_blocks_map"]
+
+        if (
+            self._block_size * len(parent_inode_record["data_blocks_map"])
+            - len(parent_entry.dumped)
+            > self._block_size
+        ):
+            self.clear_data_block(parent_inode_record["data_blocks_map"])
+            addresses = self.allocate_blocks(parent_entry)
+            parent_inode_record["data_blocks_map"] = addresses
+            parent_inode_record["file_size"] = len(parent_entry.dumped)
+
+        self.write_data(addresses, parent_entry)
+        self.write_inode(Inode(parent_inode_record))
+
+    def clear_data_block(self, addresses: list[Address]) -> None:
+        for addr in addresses:
+            self._driver.clear(
+                self._data_sector_offset + addr * self._block_size, self._block_size
+            )
+        self.bitmap = self.bitmap.update("0", addresses)
+        self._driver.write(self.bitmap.offset, self.bitmap.dumped)
+
+    def clear_inode(self, inode_id: int):
+        self._driver.clear(
+            self._inode_sector_offset + inode_id * self.__inode_size, self.__inode_size
         )

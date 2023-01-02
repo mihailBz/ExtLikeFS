@@ -14,6 +14,9 @@ class File:
     def inode(self):
         return self._inode
 
+    def __str__(self):
+        return str(self.data.content)
+
 
 class Directory(File):
     ftype = "d"
