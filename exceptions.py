@@ -24,3 +24,7 @@ class InvalidSize(Exception):
 
 class CannotRemoveDirectory(Exception):
     pass
+
+
+class TooLongSymlink(Exception):
+    pass

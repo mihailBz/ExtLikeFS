@@ -2,6 +2,9 @@ from writable import Inode, Data
 
 
 class File:
+    ftype = None
+    default_links_cnt = None
+
     def __init__(self, inode: Inode, data: Data):
         self._inode = inode
         self._data = data

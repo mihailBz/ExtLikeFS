@@ -1,9 +1,10 @@
 import re
 from pathlib import PurePosixPath
 from pickle import dumps, loads
+from typing import Type
 
 from driver import Driver
-from files import Directory
+from files import File, Directory, Symlink, RegularFile
 from writable import Bitmap, Inode, Data
 from exceptions import *
 
@@ -31,7 +32,7 @@ class FileSystem:
         )
 
         # self._root_directory_path = PurePosixPath("/")
-        self.__mkdir("/")
+        self.create_directory("/")
         self._cwd = PurePosixPath("/")
 
     @staticmethod
@@ -50,12 +51,11 @@ class FileSystem:
         if path == "/":
             raise FileAlreadyExists
         else:
-            self.__mkdir(path)
+            self.create_directory(path)
 
-    def __mkdir(self, path: str) -> None:
+    def create_directory(self, path: str) -> None:
         path: PurePosixPath = self.resolve_path(path)
         if str(path) == "/":
-            name = "/"
             inode_id = 0
             entry = Data(
                 {
@@ -63,10 +63,11 @@ class FileSystem:
                     "..": inode_id,
                 }
             )
+            self.create_file(
+                path=path, data=entry, file_cls=Directory, name="/", inode_id=inode_id
+            )
         else:
             parent: Directory = self.read_directory(path.parent)
-
-            name = path.name
             inode_id = self.get_free_inode()
             entry = Data(
                 {
@@ -74,39 +75,15 @@ class FileSystem:
                     "..": parent.inode.content.get("id"),
                 }
             )
-
-            parent_entry = parent.data.content
-            if name not in parent_entry:
-
-                parent_inode_record = parent.inode.content
-                parent_inode_record["links_cnt"] += 1
-
-                parent_entry[name] = inode_id
-                if len(dumps(parent_entry)) > self._block_size * len(
-                    parent_inode_record["data_blocks_map"]
-                ):
-                    parent_inode_record["data_blocks_map"].extend(
-                        self.get_free_blocks(1)
-                    )
-
-                self.write_inode(Inode(parent_inode_record))
-                self.write_data(
-                    parent_inode_record["data_blocks_map"], Data(parent_entry)
-                )
-            else:
-                raise FileAlreadyExists
-
-        addresses = self.allocate_blocks(entry)
-        self.write_data(addresses, entry)
-        inode_record = {
-            "id": inode_id,
-            "file_name": name,
-            "file_type": "d",
-            "links_cnt": 2,
-            "file_size": len(entry.dumped),
-            "data_blocks_map": addresses,
-        }
-        self.write_inode(Inode(inode_record))
+            name = path.name
+            self.create_file(
+                path=path,
+                data=entry,
+                file_cls=Directory,
+                name=name,
+                parent=parent,
+                inode_id=inode_id,
+            )
 
     def read_directory(self, path: PurePosixPath) -> Directory:
         inode_id = self.get_file_inode_id(path)
@@ -267,3 +244,58 @@ class FileSystem:
 
     def cd(self, path: str):
         self.cwd = PurePosixPath(path)
+
+    def create_symlink(self, contained_path: str, symlink_path: str):
+        symlink_path = PurePosixPath(symlink_path)
+        data = Data(contained_path)
+        if len(data.dumped) > self._block_size:
+            raise TooLongSymlink
+
+        self.create_file(symlink_path, data, Symlink)
+
+    def create_file(
+        self,
+        path: PurePosixPath,
+        data: Data,
+        file_cls: Type[File],
+        name: str = None,
+        parent: Directory = None,
+        inode_id: int = None,
+    ):
+        if file_cls.ftype != "d":
+            name = path.name
+            parent = self.read_directory(path.parent)
+            inode_id = self.get_free_inode()
+
+        if not (file_cls.ftype == "d" and name == "/"):
+            parent_entry = parent.data.content
+            if name not in parent_entry:
+                parent_inode_record = parent.inode.content
+                parent_inode_record["links_cnt"] += 1
+
+                parent_entry[name] = inode_id
+                if len(dumps(parent_entry)) > self._block_size * len(
+                    parent_inode_record["data_blocks_map"]
+                ):
+                    parent_inode_record["data_blocks_map"].extend(
+                        self.get_free_blocks(1)
+                    )
+                self.write_inode(Inode(parent_inode_record))
+                self.write_data(
+                    parent_inode_record["data_blocks_map"], Data(parent_entry)
+                )
+            else:
+                raise FileAlreadyExists
+
+        addresses = self.allocate_blocks(data)
+        self.write_data(addresses, data)
+
+        inode_record = {
+            "id": inode_id,
+            "file_name": name,
+            "file_type": file_cls.ftype,
+            "links_cnt": file_cls.default_links_cnt,
+            "file_size": len(data.dumped),
+            "data_blocks_map": addresses,
+        }
+        self.write_inode(Inode(inode_record))
