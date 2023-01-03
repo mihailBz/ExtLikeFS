@@ -32,3 +32,7 @@ class TooLongSymlink(Exception):
 
 class TooManyFilesOpened(Exception):
     pass
+
+
+class WrongFileDescriptorNumber(Exception):
+    pass

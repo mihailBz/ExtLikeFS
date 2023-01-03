@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 from writable import Inode, Data
+
+Byte = int
 
 
 class File:
@@ -12,6 +16,10 @@ class File:
     @property
     def data(self):
         return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
 
     @property
     def inode(self):
@@ -29,6 +37,44 @@ class Directory(File):
 class RegularFile(File):
     ftype = "f"
     default_links_cnt = 1
+
+    def __init__(self, inode: Inode, data: Data, seek_pos: int = 0):
+        self._seek_pos = seek_pos
+        super().__init__(inode, data)
+
+    @property
+    def seek(self):
+        return self._seek_pos
+
+    @seek.setter
+    def seek(self, value):
+        self._seek_pos = value
+
+    def read(self, size: Byte) -> bytes:
+        data = self.data.content.encode()
+        start = self.seek if self.seek == 0 else self.seek - 1
+        end = start + size
+        self.seek = end
+        if end > len(data):
+            self.seek = len(data)
+            return data[start:]
+        else:
+            return data[start:end]
+
+    def write(self, data: bytes, size: Byte) -> RegularFile:
+        if self.data is None:
+            self.data = Data((b"\x00" * self.seek + data[:size]).decode())
+        elif len(self.data.content.encode()) < self.seek:
+            gap_size = len(self.data.content.encode()) - self.seek
+            self.data.content = (
+                self.data.content.encode() + b"\x00" * gap_size + data[:size]
+            ).decode()
+        else:
+            self.data.content = (
+                self.data.content.encode()[: self.seek] + data[:size]
+            ).decode()
+        self.seek += size
+        return RegularFile(self.inode, self.data, self.seek)
 
 
 class Symlink(File):

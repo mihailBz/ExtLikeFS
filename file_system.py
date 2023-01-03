@@ -14,6 +14,7 @@ Address = int
 
 class FileSystem:
     __inode_size = 256
+    __max_opened_files_number = 10000
 
     def __init__(self, driver: Driver, block_size: Byte, inodes_number: int):
         self.data_blocks_number = self.calculate_data_blocks_number(
@@ -34,6 +35,8 @@ class FileSystem:
         # self._root_directory_path = PurePosixPath("/")
         self.create_directory("/")
         self._cwd = PurePosixPath("/")
+
+        self._opened_files = {}
 
     @staticmethod
     def calculate_data_blocks_number(
@@ -195,6 +198,7 @@ class FileSystem:
         parent_inode_record["links_cnt"] -= 1
         addresses = parent_inode_record["data_blocks_map"]
 
+        # todo test
         if (
             self._block_size * len(parent_inode_record["data_blocks_map"])
             - len(parent_entry.dumped)
@@ -262,7 +266,7 @@ class FileSystem:
         self,
         path: PurePosixPath,
         file_cls: Type[File],
-        data: Data=None,
+        data: Data = None,
         name: str = None,
         parent: Directory = None,
         inode_id: int = None,
@@ -276,7 +280,10 @@ class FileSystem:
             parent_entry = parent.data.content
             if name not in parent_entry:
                 parent_inode_record = parent.inode.content
-                parent_inode_record["links_cnt"] += 1
+
+                # todo only for dir
+                if file_cls.ftype == "d":
+                    parent_inode_record["links_cnt"] += 1
 
                 parent_entry[name] = inode_id
                 if len(dumps(parent_entry)) > self._block_size * len(
@@ -309,3 +316,57 @@ class FileSystem:
             "data_blocks_map": addresses,
         }
         self.write_inode(Inode(inode_record))
+
+    def open_regular_file(self, path: str) -> int:
+        if len(self._opened_files) > self.__max_opened_files_number:
+            raise TooManyFilesOpened
+
+        inode_id = self.get_file_inode_id(self.resolve_path(path))
+        inode = self.read_inode(inode_id)
+        addresses = inode.content.get("data_blocks_map")
+        if len(addresses) == 0:
+            data = None
+        else:
+            data = self.read_data(addresses)
+        file_descriptor = max(self._opened_files, default=0) + 1
+        self._opened_files[file_descriptor] = RegularFile(inode, data)
+        return file_descriptor
+
+    def close_regular_file(self, fd: int) -> None:
+        if fd in self._opened_files:
+            self._opened_files.pop(fd)
+        else:
+            raise WrongFileDescriptorNumber
+
+    def set_regular_file_seek(self, fd: int, seek: int) -> None:
+        if fd in self._opened_files:
+            self._opened_files.get(fd).seek = seek
+        else:
+            raise WrongFileDescriptorNumber
+
+    def read_regular_file(self, fd: int, size: Byte) -> bytes:
+        if fd in self._opened_files:
+            read_value: bytes = self._opened_files.get(fd).read(size)
+            return read_value
+        else:
+            raise WrongFileDescriptorNumber
+
+    def write_regular_file(self, fd: int, data: bytes, size: Byte) -> None:
+        if fd in self._opened_files:
+            file: RegularFile = self._opened_files.get(fd)
+            updated_file: RegularFile = file.write(data, size)
+            file_data: Data = updated_file.data
+            inode_record: dict = updated_file.inode.content
+            addresses = self.allocate_blocks(file_data)
+            size = len(file_data.dumped)
+            self.write_data(addresses, file_data)
+
+            inode_record["file_size"] = size
+            inode_record["data_blocks_map"] = addresses
+            inode = Inode(inode_record)
+            self.write_inode(inode)
+
+            self._opened_files[fd] = RegularFile(inode, file_data, file.seek)
+
+        else:
+            raise WrongFileDescriptorNumber
