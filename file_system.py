@@ -251,13 +251,16 @@ class FileSystem:
         if len(data.dumped) > self._block_size:
             raise TooLongSymlink
 
-        self.create_file(symlink_path, data, Symlink)
+        self.create_file(path=symlink_path, data=data, file_cls=Symlink)
+
+    def create_regular_file(self, path: str):
+        self.create_file(path=PurePosixPath(path), file_cls=RegularFile)
 
     def create_file(
         self,
         path: PurePosixPath,
-        data: Data,
         file_cls: Type[File],
+        data: Data=None,
         name: str = None,
         parent: Directory = None,
         inode_id: int = None,
@@ -287,15 +290,20 @@ class FileSystem:
             else:
                 raise FileAlreadyExists
 
-        addresses = self.allocate_blocks(data)
-        self.write_data(addresses, data)
+        if data is not None:
+            addresses = self.allocate_blocks(data)
+            size = len(data.dumped)
+            self.write_data(addresses, data)
+        else:
+            size = 0
+            addresses = []
 
         inode_record = {
             "id": inode_id,
             "file_name": name,
             "file_type": file_cls.ftype,
             "links_cnt": file_cls.default_links_cnt,
-            "file_size": len(data.dumped),
+            "file_size": size,
             "data_blocks_map": addresses,
         }
         self.write_inode(Inode(inode_record))
