@@ -6,16 +6,16 @@ Address = int
 
 
 class Driver:
-    def __init__(self, device: StorageDevice):
+    def __init__(self, device: StorageDevice) -> None:
         self._path = device.path
         self._device_size = device.size
 
     @property
-    def path(self):
+    def path(self) -> str:
         return self._path
 
     @property
-    def device_size(self):
+    def device_size(self) -> int:
         return self._device_size
 
     def write(self, address: Address, data: bytes) -> None:
@@ -28,7 +28,7 @@ class Driver:
             storage.seek(8 * address)
             return bytes_from_bits(storage.read(8 * n_bytes))
 
-    def clear(self, address: Address, n_bytes: int):
+    def clear(self, address: Address, n_bytes: int) -> None:
         with open(self._path, "r+") as storage:
             storage.seek(8 * address)
             storage.write("0" * 8 * n_bytes)

@@ -6,7 +6,7 @@ Byte = int
 
 
 class StorageDevice:
-    def __init__(self, size: Byte, path: str, clear=False):
+    def __init__(self, size: Byte, path: str, clear: bool = False) -> None:
         self._size = size
         self._path = path
         if exists(path) and not clear:
@@ -18,9 +18,9 @@ class StorageDevice:
                 f.write("0" * size * 8)
 
     @property
-    def size(self):
+    def size(self) -> Byte:
         return self._size
 
     @property
-    def path(self):
+    def path(self) -> str:
         return self._path

@@ -9,20 +9,20 @@ class File:
     ftype = None
     default_links_cnt = None
 
-    def __init__(self, inode: Inode, data: Data):
+    def __init__(self, inode: Inode, data: Data) -> None:
         self._inode = inode
         self._data = data
 
     @property
-    def data(self):
+    def data(self) -> Data:
         return self._data
 
     @data.setter
-    def data(self, value):
+    def data(self, value: Data) -> None:
         self._data = value
 
     @property
-    def inode(self):
+    def inode(self) -> Inode:
         return self._inode
 
 
@@ -30,7 +30,7 @@ class Directory(File):
     ftype = "d"
     default_links_cnt = 2
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "\n".join([f"{v} {k}" for k, v in self.data.content.items()])
 
 
@@ -38,16 +38,16 @@ class RegularFile(File):
     ftype = "f"
     default_links_cnt = 1
 
-    def __init__(self, inode: Inode, data: Data, seek_pos: int = 0):
+    def __init__(self, inode: Inode, data: Data, seek_pos: int = 0) -> None:
         self._seek_pos = seek_pos
         super().__init__(inode, data)
 
     @property
-    def seek(self):
+    def seek(self) -> int:
         return self._seek_pos
 
     @seek.setter
-    def seek(self, value):
+    def seek(self, value: int) -> None:
         self._seek_pos = value
 
     def read(self, size: Byte) -> bytes:

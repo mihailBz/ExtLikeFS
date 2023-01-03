@@ -16,7 +16,7 @@ class FileSystem:
     __inode_size = 256
     __max_opened_files_number = 10000
 
-    def __init__(self, driver: Driver, block_size: Byte, inodes_number: int):
+    def __init__(self, driver: Driver, block_size: Byte, inodes_number: int) -> None:
         self.data_blocks_number = self.calculate_data_blocks_number(
             driver.device_size, block_size, inodes_number, self.__inode_size
         )
@@ -41,7 +41,7 @@ class FileSystem:
     @staticmethod
     def calculate_data_blocks_number(
         device_size, block_size, inodes_number, inodes_size
-    ):
+    ) -> int:
         data_blocks_number = (device_size - (inodes_number * inodes_size)) // block_size
         bitmap_blocks_number = 0
 
@@ -135,7 +135,7 @@ class FileSystem:
             )
         return Data(loads(b"".join(data)))
 
-    def get_free_inode(self):
+    def get_free_inode(self) -> int:
         for i in range(self._inodes_number):
             if (
                 self._driver.read(
@@ -146,7 +146,7 @@ class FileSystem:
                 return i
         raise OutOfInodes
 
-    def write_data(self, addresses: list[Address], data: Data):
+    def write_data(self, addresses: list[Address], data: Data) -> None:
         chunks = data.split(self._block_size)
         assert len(addresses) == len(chunks)
         for data_chunk, addr in zip(chunks, addresses):
@@ -163,20 +163,20 @@ class FileSystem:
             required_blocks_number += 1
         return self.get_free_blocks(required_blocks_number)
 
-    def get_free_blocks(self, n: int):
+    def get_free_blocks(self, n: int) -> list[Address]:
         bitmap = loads(self._driver.read(self.bitmap.offset, self.bitmap.size))
         if "0" not in bitmap:
             raise OutOfBlocks
         free_blocks = [m.start() for m in re.finditer("0", bitmap)]
         return free_blocks[:n]
 
-    def write_inode(self, inode: Inode):
+    def write_inode(self, inode: Inode) -> None:
         self._driver.write(
             self._inode_sector_offset + inode.content.get("id") * self.__inode_size,
             inode.dumped,
         )
 
-    def rmdir(self, path: str):
+    def rmdir(self, path: str) -> None:
         path: PurePosixPath = self.resolve_path(path)
         if str(path) == "/":
             raise CannotRemoveDirectory("root directory cannot be removed")
@@ -220,7 +220,7 @@ class FileSystem:
         self.bitmap = self.bitmap.update("0", addresses)
         self._driver.write(self.bitmap.offset, self.bitmap.dumped)
 
-    def clear_inode(self, inode_id: int):
+    def clear_inode(self, inode_id: int) -> None:
         self._driver.clear(
             self._inode_sector_offset + inode_id * self.__inode_size, self.__inode_size
         )
@@ -241,17 +241,17 @@ class FileSystem:
             return self._cwd.joinpath(path)
 
     @property
-    def cwd(self):
+    def cwd(self) -> PurePosixPath:
         return self._cwd
 
     @cwd.setter
-    def cwd(self, path: PurePosixPath):
+    def cwd(self, path: PurePosixPath) -> None:
         self._cwd = path
 
-    def cd(self, path: str):
+    def cd(self, path: str) -> None:
         self.cwd = PurePosixPath(path)
 
-    def create_symlink(self, contained_path: str, symlink_path: str):
+    def create_symlink(self, contained_path: str, symlink_path: str) -> None:
         symlink_path = PurePosixPath(symlink_path)
         data = Data(contained_path)
         if len(data.dumped) > self._block_size:
@@ -259,7 +259,7 @@ class FileSystem:
 
         self.create_file(path=symlink_path, data=data, file_cls=Symlink)
 
-    def create_regular_file(self, path: str):
+    def create_regular_file(self, path: str) -> None:
         self.create_file(path=PurePosixPath(path), file_cls=RegularFile)
 
     def create_file(
@@ -270,7 +270,7 @@ class FileSystem:
         name: str = None,
         parent: Directory = None,
         inode_id: int = None,
-    ):
+    ) -> None:
         if file_cls.ftype != "d":
             name = path.name
             parent = self.read_directory(path.parent)
