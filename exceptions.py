@@ -28,3 +28,7 @@ class CannotRemoveDirectory(Exception):
 
 class TooLongSymlink(Exception):
     pass
+
+
+class TooManyFilesOpened(Exception):
+    pass
