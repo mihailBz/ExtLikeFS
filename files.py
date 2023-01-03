@@ -23,7 +23,7 @@ class Directory(File):
     default_links_cnt = 2
 
     def __repr__(self):
-        return "\n".join([d for d in self.data.content])
+        return "\n".join([f"{v} {k}" for k, v in self.data.content.items()])
 
 
 class RegularFile(File):
