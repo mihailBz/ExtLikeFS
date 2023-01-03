@@ -224,8 +224,10 @@ class FileSystem:
     def ls(self) -> str:
         return str(self.read_directory(self._cwd))
 
-    def stat(self, path: str) -> str:
-        return str(self.read_directory(self.resolve_path(path)).inode)
+    def stat(self, path: str) -> Inode:
+        inode_id = self.get_file_inode_id(self.resolve_path(path))
+        inode = self.read_inode(inode_id)
+        return inode
 
     def resolve_path(self, path: str) -> PurePosixPath:
         path = PurePosixPath(path)
