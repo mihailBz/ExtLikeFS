@@ -30,9 +30,9 @@ class FileSystem:
             self._inode_sector_offset + 1 + self.__inode_size * self._inodes_number
         )
 
-        self._root_directory_path = PurePosixPath("/")
-        self.__mkdir(self._root_directory_path)
-        self._cwd = self._root_directory_path
+        # self._root_directory_path = PurePosixPath("/")
+        self.__mkdir("/")
+        self._cwd = PurePosixPath("/")
 
     @staticmethod
     def calculate_data_blocks_number(
@@ -256,3 +256,14 @@ class FileSystem:
             return path
         else:
             return self._cwd.joinpath(path)
+
+    @property
+    def cwd(self):
+        return self._cwd
+
+    @cwd.setter
+    def cwd(self, path: PurePosixPath):
+        self._cwd = path
+
+    def cd(self, path: str):
+        self.cwd = PurePosixPath(path)
