@@ -6,7 +6,7 @@ from typing import Type
 from driver import Driver
 from files import File, Directory, Symlink, RegularFile
 from writable import Bitmap, Inode, Data
-from exceptions import *
+from fs_exceptions import *
 
 Byte = int
 Address = int

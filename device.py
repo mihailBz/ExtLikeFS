@@ -1,6 +1,6 @@
 from os.path import exists
 
-from exceptions import *
+from fs_exceptions import *
 
 Byte = int
 
