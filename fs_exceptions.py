@@ -36,3 +36,7 @@ class TooManyFilesOpened(Exception):
 
 class WrongFileDescriptorNumber(Exception):
     pass
+
+
+class DirectoryLinkException(Exception):
+    pass

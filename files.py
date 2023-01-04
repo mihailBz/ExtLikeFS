@@ -76,6 +76,11 @@ class RegularFile(File):
         self.seek += size
         return RegularFile(self.inode, self.data, self.seek)
 
+    def truncate(self, size: int):
+        if self.data is not None and len(self.data.content.encode()) > size:
+            self.data.content = self.data.content.encode()[:size].decode()
+        return RegularFile(self.inode, self.data)
+
 
 class Symlink(File):
     ftype = "l"

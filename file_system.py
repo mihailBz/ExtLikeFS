@@ -190,27 +190,7 @@ class FileSystem:
         self.clear_data_block(directory.inode.content["data_blocks_map"])
         self.clear_inode(directory.inode.content["id"])
 
-        parent_entry: dict = parent.data.content
-        parent_entry.pop(path.name)
-        parent_entry: Data = Data(parent_entry)
-
-        parent_inode_record = parent.inode.content
-        parent_inode_record["links_cnt"] -= 1
-        addresses = parent_inode_record["data_blocks_map"]
-
-        # todo test
-        if (
-            self._block_size * len(parent_inode_record["data_blocks_map"])
-            - len(parent_entry.dumped)
-            > self._block_size
-        ):
-            self.clear_data_block(parent_inode_record["data_blocks_map"])
-            addresses = self.allocate_blocks(parent_entry)
-            parent_inode_record["data_blocks_map"] = addresses
-            parent_inode_record["file_size"] = len(parent_entry.dumped)
-
-        self.write_data(addresses, parent_entry)
-        self.write_inode(Inode(parent_inode_record))
+        self._remove_file_from_parent_directory_entry(parent, path.name)
 
     def clear_data_block(self, addresses: list[Address]) -> None:
         for addr in addresses:
@@ -277,27 +257,9 @@ class FileSystem:
             inode_id = self.get_free_inode()
 
         if not (file_cls.ftype == "d" and name == "/"):
-            parent_entry = parent.data.content
-            if name not in parent_entry:
-                parent_inode_record = parent.inode.content
-
-                # todo only for dir
-                if file_cls.ftype == "d":
-                    parent_inode_record["links_cnt"] += 1
-
-                parent_entry[name] = inode_id
-                if len(dumps(parent_entry)) > self._block_size * len(
-                    parent_inode_record["data_blocks_map"]
-                ):
-                    parent_inode_record["data_blocks_map"].extend(
-                        self.get_free_blocks(1)
-                    )
-                self.write_inode(Inode(parent_inode_record))
-                self.write_data(
-                    parent_inode_record["data_blocks_map"], Data(parent_entry)
-                )
-            else:
-                raise FileAlreadyExists
+            self._add_file_to_parent_directory_entry(
+                parent, name, inode_id, file_cls.ftype
+            )
 
         if data is not None:
             addresses = self.allocate_blocks(data)
@@ -309,7 +271,7 @@ class FileSystem:
 
         inode_record = {
             "id": inode_id,
-            "file_name": name,
+            "file_name": [name],
             "file_type": file_cls.ftype,
             "links_cnt": file_cls.default_links_cnt,
             "file_size": size,
@@ -361,6 +323,8 @@ class FileSystem:
             size = len(file_data.dumped)
             self.write_data(addresses, file_data)
 
+            self.clear_data_block(inode_record["data_blocks_map"])
+
             inode_record["file_size"] = size
             inode_record["data_blocks_map"] = addresses
             inode = Inode(inode_record)
@@ -370,3 +334,110 @@ class FileSystem:
 
         else:
             raise WrongFileDescriptorNumber
+
+    def create_link(self, file_path: str, link_path: str) -> None:
+        f_path: PurePosixPath = self.resolve_path(file_path)
+        l_path: PurePosixPath = self.resolve_path(link_path)
+
+        inode: Inode = self.read_inode(self.get_file_inode_id(f_path))
+        inode_record: dict = inode.content
+        if inode_record.get("file_type") == "d":
+            raise DirectoryLinkException("Cannot create hardlink for directory")
+
+        inode_record["file_name"].append(l_path.name)
+        inode_record["links_cnt"] += 1
+
+        l_parent_directory: Directory = self.read_directory(l_path.parent)
+        self._add_file_to_parent_directory_entry(
+            l_parent_directory,
+            l_path.name,
+            inode_record["id"],
+            inode_record["file_type"],
+        )
+
+        self.write_inode(Inode(inode_record))
+
+    def unlink(self, path: str) -> None:
+        path: PurePosixPath = self.resolve_path(path)
+        inode: Inode = self.read_inode(self.get_file_inode_id(path))
+        inode_record: dict = inode.content
+
+        if inode_record.get("file_type") == "d":
+            raise DirectoryLinkException("Cannot unlink directory")
+
+        inode_record["file_name"].remove(path.name)
+        inode_record["links_cnt"] -= 1
+
+        if inode_record["links_cnt"] == 0:
+            self.clear_data_block(inode_record["data_blocks_map"])
+            self.clear_inode(inode_record["id"])
+
+        parent: Directory = self.read_directory(path.parent)
+
+        self._remove_file_from_parent_directory_entry(parent, path.name)
+        self.write_inode(Inode(inode_record))
+
+    def truncate(self, path: str, size: int) -> None:
+        path: PurePosixPath = self.resolve_path(path)
+
+        inode: Inode = self.read_inode(self.get_file_inode_id(path))
+        addresses = inode.content.get("data_blocks_map")
+        if len(addresses) == 0:
+            data = None
+        else:
+            data = self.read_data(addresses)
+
+        file: RegularFile = RegularFile(inode, data).truncate(size)
+        file_data: Data = file.data
+        inode_record: dict = file.inode.content
+        size = len(file_data.dumped)
+        self.write_data(addresses, file_data)
+
+        inode_record["file_size"] = size
+        inode_record["data_blocks_map"] = addresses
+
+        self.write_inode(Inode(inode_record))
+
+    def _remove_file_from_parent_directory_entry(
+        self, parent: Directory, child_name: str
+    ) -> None:
+        parent_entry: dict = parent.data.content
+        parent_entry.pop(child_name)
+        parent_entry: Data = Data(parent_entry)
+
+        parent_inode_record = parent.inode.content
+        parent_inode_record["links_cnt"] -= 1
+        addresses = parent_inode_record["data_blocks_map"]
+
+        # todo test
+        if (
+            self._block_size * len(parent_inode_record["data_blocks_map"])
+            - len(parent_entry.dumped)
+            > self._block_size
+        ):
+            self.clear_data_block(parent_inode_record["data_blocks_map"])
+            addresses = self.allocate_blocks(parent_entry)
+            parent_inode_record["data_blocks_map"] = addresses
+            parent_inode_record["file_size"] = len(parent_entry.dumped)
+        self.write_data(addresses, parent_entry)
+        self.write_inode(Inode(parent_inode_record))
+
+    def _add_file_to_parent_directory_entry(
+        self, parent: Directory, child_name: str, child_inode_id: int, child_type: str
+    ) -> None:
+        parent_entry = parent.data.content
+        if child_name not in parent_entry:
+            parent_inode_record = parent.inode.content
+
+            if child_type == "d":
+                parent_inode_record["links_cnt"] += 1
+
+            parent_entry[child_name] = child_inode_id
+            if len(dumps(parent_entry)) > self._block_size * len(
+                parent_inode_record["data_blocks_map"]
+            ):
+                parent_inode_record["data_blocks_map"].extend(self.get_free_blocks(1))
+            self.write_inode(Inode(parent_inode_record))
+            self.write_data(parent_inode_record["data_blocks_map"], Data(parent_entry))
+        else:
+            raise FileAlreadyExists
