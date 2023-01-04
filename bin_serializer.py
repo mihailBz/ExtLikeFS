@@ -2,12 +2,16 @@ import binascii
 from pickle import dumps, loads
 
 
-def text_to_bits(text: str, encoding: str = "utf-8", errors: str = "surrogatepass") -> str:
+def text_to_bits(
+    text: str, encoding: str = "utf-8", errors: str = "surrogatepass"
+) -> str:
     bits = bin(int(binascii.hexlify(text.encode(encoding, errors)), 16))[2:]
     return bits.zfill(8 * ((len(bits) + 7) // 8))
 
 
-def text_from_bits(bits: str, encoding: str = "utf-8", errors: str = "surrogatepass") -> str:
+def text_from_bits(
+    bits: str, encoding: str = "utf-8", errors: str = "surrogatepass"
+) -> str:
     n = int(bits, 2)
     return int2bytes(n).decode(encoding, errors)
 
