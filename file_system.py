@@ -46,7 +46,7 @@ class FileSystem:
 
     @staticmethod
     def calculate_data_blocks_number(
-        device_size, block_size, inodes_number, inodes_size
+        device_size: int, block_size: int, inodes_number: int, inodes_size: int
     ) -> int:
         data_blocks_number = (device_size - (inodes_number * inodes_size)) // block_size
         bitmap_blocks_number = 0
@@ -100,17 +100,32 @@ class FileSystem:
         entry = self.read_data(inode.content.get("data_blocks_map"))
         return Directory(inode, entry)
 
-    def get_file_inode_id(self, path: PurePosixPath) -> int:
+    def get_file_inode_id(
+        self, path: PurePosixPath, return_symlink_inode_id: bool = False
+    ) -> int:
         inode_id = 0
         if len(path.parents) != 0:
             parents = list(path.parents[::-1])
             parents.append(path)
         else:
             return inode_id
-        for parent, child in zip(parents[:-1], parents[1:]):
+        for child in parents[1:]:
             parent_entry = self.read_file(inode_id)
             if parent_entry.content.get(child.name) is not None:
-                inode_id = parent_entry.content.get(child.name)
+                inode_id: int = parent_entry.content.get(child.name)
+                inode: Inode = self.read_inode(inode_id)
+                if inode.content.get("file_type") == "l":
+                    data: str = self.read_data(
+                        inode.content.get("data_blocks_map")
+                    ).content
+                    symlink_contained_path: PurePosixPath = PurePosixPath(data)
+                    if (
+                        return_symlink_inode_id
+                        and path.name == inode.content.get("file_name")[0]
+                    ):
+                        return inode_id
+                    inode_id: int = self.get_file_inode_id(symlink_contained_path)
+
             else:
                 raise FileDoesNotExist
         return inode_id
@@ -215,7 +230,9 @@ class FileSystem:
         return str(self.read_directory(self._cwd))
 
     def stat(self, path: str) -> Inode:
-        inode_id = self.get_file_inode_id(self.resolve_path(path))
+        inode_id = self.get_file_inode_id(
+            self.resolve_path(path), return_symlink_inode_id=True
+        )
         inode = self.read_inode(inode_id)
         return inode
 
@@ -238,12 +255,13 @@ class FileSystem:
         self.cwd = PurePosixPath(path)
 
     def create_symlink(self, contained_path: str, symlink_path: str) -> None:
-        symlink_path = PurePosixPath(symlink_path)
-        data = Data(contained_path)
+        c_path = self.resolve_path(contained_path)
+        s_path = self.resolve_path(symlink_path)
+        data = Data(str(c_path))
         if len(data.dumped) > self._block_size:
             raise TooLongSymlink
 
-        self.create_file(path=symlink_path, data=data, file_cls=Symlink)
+        self.create_file(path=s_path, data=data, file_cls=Symlink)
 
     def create_regular_file(self, path: str) -> None:
         self.create_file(path=PurePosixPath(path), file_cls=RegularFile)
