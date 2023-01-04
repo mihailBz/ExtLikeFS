@@ -6,10 +6,10 @@ Byte = int
 
 
 class StorageDevice:
-    def __init__(self, size: Byte, path: str, clear: bool = False) -> None:
+    def __init__(self, size: Byte, path: str, use_existing: bool = False) -> None:
         self._size = size
         self._path = path
-        if exists(path) and not clear:
+        if exists(path) and use_existing:
             with open(path, "r") as f:
                 if len(f.read()) / 8 != size:
                     raise InvalidSize

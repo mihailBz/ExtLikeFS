@@ -16,7 +16,13 @@ class FileSystem:
     __inode_size = 256
     __max_opened_files_number = 10000
 
-    def __init__(self, driver: Driver, block_size: Byte, inodes_number: int) -> None:
+    def __init__(
+        self,
+        driver: Driver,
+        block_size: Byte,
+        inodes_number: int,
+        use_existing: bool = False,
+    ) -> None:
         self.data_blocks_number = self.calculate_data_blocks_number(
             driver.device_size, block_size, inodes_number, self.__inode_size
         )
@@ -32,8 +38,8 @@ class FileSystem:
             self._inode_sector_offset + 1 + self.__inode_size * self._inodes_number
         )
 
-        # self._root_directory_path = PurePosixPath("/")
-        self.create_directory("/")
+        if not use_existing:
+            self.create_directory("/")
         self._cwd = PurePosixPath("/")
 
         self._opened_files = {}
