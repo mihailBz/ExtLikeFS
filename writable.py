@@ -44,7 +44,6 @@ class Bitmap(Writable):
 class Inode(Writable):
     def __repr__(self) -> str:
         return "\n".join([f"{k}: {v}" for k, v in self.content.items()])
-        # return str([f'{k}: {v}' for k, v in self.content.items()])
 
 
 class Data(Writable):
