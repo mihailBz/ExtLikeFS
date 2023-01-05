@@ -103,7 +103,7 @@ class FileSystem:
 
             self._clear_data_block(inode_record["data_blocks_map"])
 
-            inode_record["file_size"] = size
+            inode_record["file_size"] = len(file_data.content.encode())
             inode_record["data_blocks_map"] = addresses
             inode = Inode(inode_record)
             self._write_inode(inode)
@@ -175,7 +175,7 @@ class FileSystem:
         size = len(file_data.dumped)
         self._write_data(addresses, file_data)
 
-        inode_record["file_size"] = size
+        inode_record["file_size"] = len(file_data.content.encode())
         inode_record["data_blocks_map"] = addresses
 
         self._write_inode(Inode(inode_record))
@@ -418,11 +418,17 @@ class FileSystem:
 
         if data is not None:
             addresses = self._allocate_blocks(data)
-            size = len(data.dumped)
+
+            if file_cls.ftype == 'f':
+                size = len(data.content.encode())
+            else:
+                size = len(data.dumped)
             self._write_data(addresses, data)
         else:
             size = 0
             addresses = []
+
+
 
         inode_record = {
             "id": inode_id,
