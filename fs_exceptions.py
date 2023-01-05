@@ -1,6 +1,6 @@
-
 class FileSystemException(Exception):
     pass
+
 
 class OutOfInodes(FileSystemException):
     pass
@@ -43,4 +43,8 @@ class WrongFileDescriptorNumber(FileSystemException):
 
 
 class DirectoryLinkException(FileSystemException):
+    pass
+
+
+class InvalidInput(FileSystemException):
     pass
