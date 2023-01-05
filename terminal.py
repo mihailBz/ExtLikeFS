@@ -48,10 +48,12 @@ class Terminal:
     def start_session(self):
 
         initial_input = input("fs> ").strip()
-        if match := re.fullmatch(r"mkfs\s+(\d+)", initial_input):
-            fs = mkfs(int(match.group(1)))
-        else:
-            raise InvalidInput
+        match = re.fullmatch(r"mkfs\s+(\d+)", initial_input)
+        while not match:
+            initial_input = input("fs> ").strip()
+            match = re.fullmatch(r"mkfs\s+(\d+)", initial_input)
+
+        fs = mkfs(int(match.group(1)))
 
         descriptors = {}
 
