@@ -137,7 +137,11 @@ class FileSystem:
 
     def unlink(self, path: str) -> None:
         path: PurePosixPath = self._resolve_path(path)
-        inode: Inode = self._read_inode(self._get_file_inode_id(path))
+        inode_id: int = self._get_file_inode_id(path)
+        for open_file in self._open_files.values():
+            if open_file.inode.content.get("id") == inode_id:
+                raise CannotUnlinkOpenFile
+        inode: Inode = self._read_inode(inode_id)
         inode_record: dict = inode.content
 
         if inode_record.get("file_type") == "d":

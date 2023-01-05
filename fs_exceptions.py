@@ -48,3 +48,7 @@ class DirectoryLinkException(FileSystemException):
 
 class InvalidInput(FileSystemException):
     pass
+
+
+class CannotUnlinkOpenFile(FileSystemException):
+    pass
