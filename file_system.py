@@ -199,7 +199,7 @@ class FileSystem:
         self._remove_file_from_parent_directory_entry(parent, path.name)
 
     def cd(self, path: str) -> None:
-        self.cwd = PurePosixPath(path)
+        self.cwd = self._resolve_path(path)
 
     def symlink(self, file_path: str, link_path: str) -> None:
         c_path = self._resolve_path(file_path)
