@@ -203,7 +203,15 @@ class FileSystem:
         self._remove_file_from_parent_directory_entry(parent, path.name)
 
     def cd(self, path: str) -> None:
-        self.cwd = self._absolutize(self._resolve_path(path))
+        resolved_path: PurePosixPath = self._resolve_path(path)
+        inode_id: int = self._get_file_inode_id(
+            resolved_path, return_symlink_inode_id=True
+        )
+        inode: Inode = self._read_inode(inode_id)
+        if inode.content.get("file_type") == "l":
+            symlink_path = self._read_data(inode.content.get("data_blocks_map")).content
+            resolved_path = self._resolve_path(symlink_path)
+        self.cwd = self._absolutize(resolved_path)
 
     def symlink(self, file_path: str, link_path: str) -> None:
         c_path = self._resolve_path(file_path)
