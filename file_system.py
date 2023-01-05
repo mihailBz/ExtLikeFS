@@ -14,7 +14,7 @@ Address = int
 
 class FileSystem:
     __inode_size = 256
-    __max_opened_files_number = 10000
+    __max_open_files_number = 10000
 
     def __init__(
         self,
@@ -42,7 +42,7 @@ class FileSystem:
             self._create_directory("/")
         self._cwd = PurePosixPath("/")
 
-        self._opened_files = {}
+        self._open_files = {}
 
     def ls(self) -> str:
         return str(self._read_directory(self._cwd))
@@ -55,11 +55,11 @@ class FileSystem:
         return inode
 
     def create(self, path: str) -> None:
-        self._create_file(path=PurePosixPath(path), file_cls=RegularFile)
+        self._create_file(path=self._resolve_path(path), file_cls=RegularFile)
 
     def open(self, path: str) -> int:
-        if len(self._opened_files) > self.__max_opened_files_number:
-            raise TooManyFilesOpened
+        if len(self._open_files) > self.__max_open_files_number:
+            raise TooManyFilesOpen
 
         inode_id = self._get_file_inode_id(self._resolve_path(path))
         inode = self._read_inode(inode_id)
@@ -68,32 +68,32 @@ class FileSystem:
             data = None
         else:
             data = self._read_data(addresses)
-        file_descriptor = max(self._opened_files, default=0) + 1
-        self._opened_files[file_descriptor] = RegularFile(inode, data)
+        file_descriptor = max(self._open_files, default=0) + 1
+        self._open_files[file_descriptor] = RegularFile(inode, data)
         return file_descriptor
 
     def close(self, fd: int) -> None:
-        if fd in self._opened_files:
-            self._opened_files.pop(fd)
+        if fd in self._open_files:
+            self._open_files.pop(fd)
         else:
             raise WrongFileDescriptorNumber
 
     def seek(self, fd: int, seek: int) -> None:
-        if fd in self._opened_files:
-            self._opened_files.get(fd).seek = seek
+        if fd in self._open_files:
+            self._open_files.get(fd).seek = seek
         else:
             raise WrongFileDescriptorNumber
 
     def read(self, fd: int, size: Byte) -> bytes:
-        if fd in self._opened_files:
-            read_value: bytes = self._opened_files.get(fd).read(size)
+        if fd in self._open_files:
+            read_value: bytes = self._open_files.get(fd).read(size)
             return read_value
         else:
             raise WrongFileDescriptorNumber
 
     def write(self, fd: int, data: bytes, size: Byte) -> None:
-        if fd in self._opened_files:
-            file: RegularFile = self._opened_files.get(fd)
+        if fd in self._open_files:
+            file: RegularFile = self._open_files.get(fd)
             updated_file: RegularFile = file.write(data, size)
             file_data: Data = updated_file.data
             inode_record: dict = updated_file.inode.content
@@ -108,7 +108,7 @@ class FileSystem:
             inode = Inode(inode_record)
             self._write_inode(inode)
 
-            self._opened_files[fd] = RegularFile(inode, file_data, file.seek)
+            self._open_files[fd] = RegularFile(inode, file_data, file.seek)
 
         else:
             raise WrongFileDescriptorNumber

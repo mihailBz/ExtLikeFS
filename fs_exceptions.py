@@ -34,7 +34,7 @@ class TooLongSymlink(FileSystemException):
     pass
 
 
-class TooManyFilesOpened(FileSystemException):
+class TooManyFilesOpen(FileSystemException):
     pass
 
 
