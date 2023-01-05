@@ -199,7 +199,7 @@ class FileSystem:
         self._remove_file_from_parent_directory_entry(parent, path.name)
 
     def cd(self, path: str) -> None:
-        self.cwd = self._resolve_path(path)
+        self.cwd = self._absolutize(self._resolve_path(path))
 
     def symlink(self, file_path: str, link_path: str) -> None:
         c_path = self._resolve_path(file_path)
@@ -465,3 +465,18 @@ class FileSystem:
             self._write_data(parent_inode_record["data_blocks_map"], Data(parent_entry))
         else:
             raise FileAlreadyExists
+
+    @staticmethod
+    def _absolutize(path: PurePosixPath):
+        split_path: list = list(path.parts)
+        i = 0
+        try:
+            while i < len(split_path):
+                if split_path[i] == "..":
+                    split_path.pop(i)
+                    split_path.pop(i - 1)
+                    i -= 2
+                i += 1
+        except IndexError:
+            return PurePosixPath("/")
+        return PurePosixPath("/").joinpath("/".join(split_path[1:]))
