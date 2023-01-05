@@ -1,42 +1,46 @@
-class OutOfInodes(Exception):
+
+class FileSystemException(Exception):
+    pass
+
+class OutOfInodes(FileSystemException):
     pass
 
 
-class InvalidPath(Exception):
+class InvalidPath(FileSystemException):
     pass
 
 
-class FileDoesNotExist(Exception):
+class FileDoesNotExist(FileSystemException):
     pass
 
 
-class FileAlreadyExists(Exception):
+class FileAlreadyExists(FileSystemException):
     pass
 
 
-class OutOfBlocks(Exception):
+class OutOfBlocks(FileSystemException):
     pass
 
 
-class InvalidSize(Exception):
+class InvalidSize(FileSystemException):
     pass
 
 
-class CannotRemoveDirectory(Exception):
+class CannotRemoveDirectory(FileSystemException):
     pass
 
 
-class TooLongSymlink(Exception):
+class TooLongSymlink(FileSystemException):
     pass
 
 
-class TooManyFilesOpened(Exception):
+class TooManyFilesOpened(FileSystemException):
     pass
 
 
-class WrongFileDescriptorNumber(Exception):
+class WrongFileDescriptorNumber(FileSystemException):
     pass
 
 
-class DirectoryLinkException(Exception):
+class DirectoryLinkException(FileSystemException):
     pass
